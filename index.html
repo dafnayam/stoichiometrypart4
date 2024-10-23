@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>משחק יחסים בתגובות כימיות</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            position: relative;
+            width: 845px;
+            height: 498px;
+            background-image: url('https://www.cjoint.com/doc/24_07/NGqtj3Sgjj2_2.png');
+            background-size: cover;
+            background-position: center;
+        }
+        .card {
+            background-color: rgba(224, 224, 224, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            position: absolute;
+            user-select: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: box-shadow 0.3s ease;
+        }
+        #recipe-card {
+            top: 10px;
+            left: 8px;
+            width: 380px;
+            height: auto;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        #data-card {
+            top: 290px;
+            left: 100px;
+        }
+        #score-card {
+            top: 10px;
+            right: 10px;
+        }
+        input[type="number"] {
+            width: 60px;
+            padding: 5px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+        #feedback {
+            position: absolute;
+            top: 370px;
+            left: 690px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            width: 300px;
+            text-align: center;
+            border-radius: 10px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .modal-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<div id="levelCompleteModal" class="modal">
+    <div class="modal-content">
+        <h2>כל הכבוד! סיימת את כל ארבעת השלבים</h2>
+        <button class="modal-button" onclick="goToGenially()">משחק חוזר</button>
+    </div>
+</div>
+<div id="game-container">
+    <div id="recipe-card" class="card">
+        <h2>תגובות כימיות</h2>
+        <p id="recipe1"></p>
+        <p id="recipe2"></p>
+    </div>
+    <div id="data-card" class="card">
+        <h2>שאלה</h2>
+        <p id="question"></p>
+        <input type="number" id="answer" step="0.1">
+        <span id="answer-unit"></span>
+        <button onclick="checkAnswer()">בדוק תשובה</button>
+    </div>
+    <div id="feedback"></div>
+    <div id="score-card" class="card">
+        <p>ניקוד: <span id="score">0</span></p>
+    </div>
+</div>
+
+<script>
+    const reactionSets = [
+        {
+            reaction1: { reactants: { 'Fe2O3': 1, 'H2': 3 }, products: { 'Fe': 2, 'H2O': 3 } },
+            reaction2: { reactants: { 'H2O': 1, 'CO2': 1 }, products: { 'H2CO3': 1 } }
+        },
+        {
+            reaction1: { reactants: { 'Zn': 1, 'HCl': 2 }, products: { 'ZnCl2': 1, 'H2': 1 } },
+            reaction2: { reactants: { 'H2': 2, 'O2': 1 }, products: { 'H2O': 2 } }
+        },
+        {
+            reaction1: { reactants: { 'K2CO3': 1, 'H2O': 1 }, products: { 'KOH': 2, 'CO2': 1 } },
+            reaction2: { reactants: { 'CO2': 16, 'H2O': 16 }, products: { 'O2': 25, 'C8H18': 2 } }
+        },
+        {
+            reaction1: { reactants: { 'H2O': 6, 'NO': 4 }, products: { 'O2': 6, 'NH3': 4 } },
+            reaction2: { reactants: { 'NH3': 2 }, products: { 'H2': 3, 'N2': 1 } }
+        },
+        {
+            reaction1: { reactants: { 'H2O': 6, 'NO': 4 }, products: { 'O2': 5, 'NH3': 4 } },
+            reaction2: { reactants: { 'NH3': 2, 'Mg(OH)2': 3 }, products: { 'Mg3N2': 1, 'H2O': 6 } }
+        }
+    ];
+
+    let currentReactionSet;
+    let correctAnswer;
+    let score = 0;
+    let previousReactionIndex = -1;
+
+    function startGame() {
+        score = 0;
+        document.getElementById('score').innerText = score;
+        document.getElementById('levelCompleteModal').style.display = 'none';
+        generateNewQuestion();
+    }
+
+    function generateNewQuestion() {
+        document.getElementById('feedback').style.display = 'none';
+        document.getElementById('answer').value = '';
+        selectNewReactionSet();
+        displayReactions();
+        generateQuestion();
+    }
+
+    function selectNewReactionSet() {
+        let newReactionIndex;
+        do {
+            newReactionIndex = Math.floor(Math.random() * reactionSets.length);
+        } while (newReactionIndex === previousReactionIndex);
+        previousReactionIndex = newReactionIndex;
+        currentReactionSet = reactionSets[newReactionIndex];
+    }
+
+    function displayReactions() {
+        document.getElementById('recipe1').innerHTML = formatReaction(currentReactionSet.reaction1);
+        document.getElementById('recipe2').innerHTML = formatReaction(currentReactionSet.reaction2);
+    }
+
+    function formatReaction(reaction) {
+        const reactants = Object.entries(reaction.reactants)
+            .map(([name, amount]) => (amount > 1 ? `${amount}${subscript(name)}` : subscript(name)))
+            .join(' + ');
+        const products = Object.entries(reaction.products)
+            .map(([name, amount]) => (amount > 1 ? `${amount}${subscript(name)}` : subscript(name)))
+            .join(' + ');
+        return `${reactants} &#x2192; ${products}`;
+    }
+
+    function subscript(formula) {
+        return formula.replace(/\d/g, (digit) => `<sub>${digit}</sub>`);
+    }
+
+    function generateQuestion() {
+        if (Math.random() < 0.5) {
+            generateTypeAQuestion();
+        } else {
+            generateTypeBQuestion();
+        }
+    }
+
+    function generateTypeAQuestion() {
+        const reactantA = Object.keys(currentReactionSet.reaction1.reactants)[0];
+        const productB = Object.keys(currentReactionSet.reaction1.products)[1];
+        const productF = Object.keys(currentReactionSet.reaction2.products)[0];
+        const amountA = getRandomInt(5, 250);
+
+        const a = currentReactionSet.reaction1.reactants[reactantA];
+        const b = currentReactionSet.reaction1.products[productB];
+        const d = currentReactionSet.reaction2.reactants[productB];
+        const f = currentReactionSet.reaction2.products[productF];
+
+        correctAnswer = (amountA * b * f) / (a * d);
+        correctAnswer = Number(correctAnswer.toFixed(2));
+
+        document.getElementById('question').innerHTML = `אם השתמשנו ב-${amountA} מולים של ${subscript(reactantA)}, כמה מולים של ${subscript(productF)} נקבל בסוף התהליך?`;
+        document.getElementById('answer-unit').innerHTML = `מולים של ${subscript(productF)}`;
+    }
+
+    function generateTypeBQuestion() {
+        const reactantA = Object.keys(currentReactionSet.reaction1.reactants)[0];
+        const productB = Object.keys(currentReactionSet.reaction1.products)[1];
+        const productF = Object.keys(currentReactionSet.reaction2.products)[0];
+        const amountF = getRandomInt(5, 250);
+
+        const a = currentReactionSet.reaction1.reactants[reactantA];
+        const b = currentReactionSet.reaction1.products[productB];
+        const d = currentReactionSet.reaction2.reactants[productB];
+        const f = currentReactionSet.reaction2.products[productF];
+
+        correctAnswer = (amountF * d * a) / (b * f);
+        correctAnswer = Number(correctAnswer.toFixed(2));
+
+        document.getElementById('question').innerHTML = `אם קיבלנו ${amountF} מולים של ${subscript(productF)}, בכמה מולים של ${subscript(reactantA)} השתמשנו בהתחלה?`;
+        document.getElementById('answer-unit').innerHTML = `מולים של ${subscript(reactantA)}`;
+    }
+
+    function getRandomInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function checkAnswer() {
+        const userAnswer = parseFloat(document.getElementById('answer').value);
+        const tolerance = 0.1;
+        const feedbackElement = document.getElementById('feedback');
+        feedbackElement.style.display = 'block';
+
+        if (!isNaN(userAnswer) && Math.abs(userAnswer - correctAnswer) <= tolerance) {
+            score++;
+            feedbackElement.innerText = 'כל הכבוד! תשובה נכונה!';
+        } else {
+            feedbackElement.innerText = `טעות. התשובה הנכונה היא ${correctAnswer}.`;
+            score = Math.max(0, score - 1);
+        }
+
+        document.getElementById('score').innerText = score;
+
+        setTimeout(() => {
+            if (score >= 10) {
+                document.getElementById('levelCompleteModal').style.display = 'block';
+            } else {
+                generateNewQuestion();
+            }
+        }, 1500);
+    }
+
+    function goToGenially() {
+        window.location.href = 'https://view.genially.com/6696bf1b77d383d89c9869a4';
+    }
+
+    function restartGame() {
+        startGame();
+    }
+
+    startGame();
+</script>
+</body>
+</html>
